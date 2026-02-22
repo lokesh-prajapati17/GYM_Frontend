@@ -17,7 +17,7 @@ const AppLayout = () => {
       : DRAWER_COLLAPSED;
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <TopBar onMenuClick={() => setMobileOpen(!mobileOpen)} />
       <Sidebar
         open={sidebarOpen}
@@ -32,7 +32,8 @@ const AppLayout = () => {
           width: `calc(100% - ${drawerWidth}px)`,
           transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           bgcolor: "background.default",
-          minHeight: "100vh",
+          height: "100vh",
+          overflowY: "auto",
         }}
       >
         <Toolbar />
