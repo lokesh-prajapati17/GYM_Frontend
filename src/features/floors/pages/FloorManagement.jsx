@@ -29,8 +29,8 @@ import {
   Visibility,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
-import { selectThemeColors } from "../../features/vr/vrThemeSlice";
-import { floorService } from "../../services/services";
+import { selectThemeColors } from "../../../features/vr/vrThemeSlice";
+import { floorService } from "../services/floorService";
 import toast from "react-hot-toast";
 
 const FloorManagement = () => {

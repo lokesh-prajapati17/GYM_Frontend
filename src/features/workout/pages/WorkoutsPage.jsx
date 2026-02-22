@@ -30,7 +30,7 @@ import {
   Restaurant,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import { workoutService } from "../../services/services";
+import { workoutService } from "../services/workoutService";
 import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 

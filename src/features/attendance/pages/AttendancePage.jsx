@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import { EventAvailable, PersonAdd } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import { attendanceService } from "../../services/services";
+import { attendanceService } from "../services/attendanceService";
 import toast from "react-hot-toast";
 
 const AttendancePage = () => {

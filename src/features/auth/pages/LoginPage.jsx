@@ -13,6 +13,10 @@ import {
   alpha,
   Alert,
   CircularProgress,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
 import {
   Visibility,
@@ -20,27 +24,176 @@ import {
   FitnessCenter,
   Email,
   Lock,
+  StoreMallDirectory,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import { login, clearError } from "./authSlice";
+import { login, selectBranch, clearError } from "../authSlice";
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, isLoading, error } = useSelector((state) => state.auth);
+  const { user, isLoading, error, branchSelectionRequired, branches } = useSelector(
+    (state) => state.auth,
+  );
 
   useEffect(() => {
-    if (user) navigate("/dashboard");
+    // Navigate to dashboard only if logged in and no branch selection pending
+    if (user && !branchSelectionRequired) navigate("/dashboard");
     return () => dispatch(clearError());
-  }, [user, navigate, dispatch]);
+  }, [user, branchSelectionRequired, navigate, dispatch]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     dispatch(login(formData));
   };
 
+  const handleBranchSelect = (branchId) => {
+    dispatch(selectBranch({ branchId }));
+  };
+
+  // --- Branch Selection View ---
+  if (user && branchSelectionRequired) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "linear-gradient(135deg, #0A0E17 0%, #111827 40%, #0A0E17 100%)",
+          p: 2,
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <Card
+            sx={{
+              width: "100%",
+              maxWidth: 440,
+              p: 4,
+              background: alpha("#111827", 0.9),
+              backdropFilter: "blur(30px)",
+              border: `1px solid ${alpha("#39FF14", 0.1)}`,
+              boxShadow: `0 20px 60px ${alpha("#000", 0.5)}, 0 0 40px ${alpha("#39FF14", 0.05)}`,
+            }}
+          >
+            <Box sx={{ textAlign: "center", mb: 3 }}>
+              <Box
+                sx={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 3,
+                  mx: "auto",
+                  mb: 2,
+                  background:
+                    "linear-gradient(135deg, #39FF14 0%, #00E676 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: `0 8px 32px ${alpha("#39FF14", 0.3)}`,
+                }}
+              >
+                <StoreMallDirectory sx={{ color: "#0A0A0A", fontSize: 36 }} />
+              </Box>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontFamily: "Outfit",
+                  fontWeight: 800,
+                  color: "#F1F5F9",
+                }}
+              >
+                Select Branch
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "#94A3B8", mt: 0.5 }}
+              >
+                Welcome, {user.name}! Choose a branch to continue.
+              </Typography>
+            </Box>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <List sx={{ width: "100%" }}>
+              {branches.map((branch, index) => (
+                <motion.div
+                  key={branch._id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <ListItemButton
+                    onClick={() => handleBranchSelect(branch._id)}
+                    disabled={isLoading}
+                    sx={{
+                      mb: 1.5,
+                      borderRadius: 2,
+                      border: `1px solid ${alpha("#39FF14", 0.15)}`,
+                      bgcolor: alpha("#1E293B", 0.5),
+                      "&:hover": {
+                        bgcolor: alpha("#39FF14", 0.08),
+                        borderColor: alpha("#39FF14", 0.4),
+                      },
+                      transition: "all 0.2s ease",
+                      py: 1.5,
+                    }}
+                  >
+                    <ListItemIcon>
+                      <StoreMallDirectory
+                        sx={{ color: "#39FF14", fontSize: 28 }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography
+                          sx={{
+                            fontWeight: 600,
+                            color: "#F1F5F9",
+                            fontSize: "1rem",
+                          }}
+                        >
+                          {branch.name}
+                        </Typography>
+                      }
+                      secondary={
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "#94A3B8" }}
+                        >
+                          {branch.floorCount} floor
+                          {branch.floorCount > 1 ? "s" : ""}
+                          {branch.vrEnabled && " • VR Enabled"}
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                </motion.div>
+              ))}
+            </List>
+
+            {isLoading && (
+              <Box sx={{ textAlign: "center", mt: 2 }}>
+                <CircularProgress size={24} sx={{ color: "#39FF14" }} />
+              </Box>
+            )}
+          </Card>
+        </motion.div>
+      </Box>
+    );
+  }
+
+  // --- Login Form View ---
   return (
     <Box
       sx={{
@@ -227,39 +380,6 @@ const LoginPage = () => {
               Sign Up
             </Typography>
           </Typography>
-
-          {/* Demo Credentials */}
-          <Box
-            sx={{
-              mt: 3,
-              p: 2,
-              borderRadius: 2,
-              bgcolor: alpha("#39FF14", 0.05),
-              border: `1px dashed ${alpha("#39FF14", 0.2)}`,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: "#39FF14",
-                fontWeight: 600,
-                display: "block",
-                mb: 1,
-              }}
-            >
-              Demo Credentials
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "#94A3B8", display: "block", lineHeight: 1.8 }}
-            >
-              Admin: admin@gym.com / admin123
-              <br />
-              Trainer: rahul@gym.com / trainer123
-              <br />
-              Member: amit@email.com / member123
-            </Typography>
-          </Box>
         </Card>
       </motion.div>
     </Box>

@@ -25,6 +25,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../features/auth/authSlice";
 import { selectThemeColors } from "../../features/vr/vrThemeSlice";
+import BranchSwitcher from "../BranchSwitcher";
 
 const TopBar = ({ onMenuClick }) => {
   const { user } = useSelector((state) => state.auth);
@@ -89,6 +90,8 @@ const TopBar = ({ onMenuClick }) => {
         </Box>
 
         <Box sx={{ flex: 1 }} />
+
+        <BranchSwitcher />
 
         {/* Notification */}
         <IconButton color="inherit" onClick={() => navigate("/notifications")}>

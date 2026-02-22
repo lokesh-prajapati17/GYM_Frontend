@@ -1,19 +1,47 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { authService } from "../../services/services";
+import { authService } from "./services/authService";
 
-const user = JSON.parse(localStorage.getItem("user"));
-const token = localStorage.getItem("token");
+const storedUser = JSON.parse(localStorage.getItem("user")) || null;
+const storedToken = localStorage.getItem("token") || null;
+const storedSubscription = JSON.parse(localStorage.getItem("subscription")) || null;
+const storedActiveBranchId = localStorage.getItem("activeBranchId") || null;
 
 export const login = createAsyncThunk(
   "auth/login",
   async (credentials, { rejectWithValue }) => {
     try {
       const { data } = await authService.login(credentials);
-      localStorage.setItem("token", data.data.token);
-      localStorage.setItem("user", JSON.stringify(data.data));
-      return data.data;
+      const { token, user, subscription, branches } = data.data;
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("subscription", JSON.stringify(subscription));
+      if (user.defaultBranchId) {
+        localStorage.setItem("activeBranchId", user.defaultBranchId);
+      }
+      return { token, user, subscription, branches };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || "Login failed");
+    }
+  },
+);
+
+export const fetchMe = createAsyncThunk(
+  "auth/fetchMe",
+  async (_, { rejectWithValue }) => {
+    try {
+      const { data } = await authService.getMe();
+      const { user, subscription, branches } = data.data;
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("subscription", JSON.stringify(subscription));
+      return { user, subscription, branches };
+    } catch (error) {
+      if (error.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("subscription");
+        localStorage.removeItem("activeBranchId");
+      }
+      return rejectWithValue(error.response?.data?.message || "Failed to fetch user");
     }
   },
 );
@@ -25,6 +53,9 @@ export const register = createAsyncThunk(
       const { data } = await authService.register(userData);
       localStorage.setItem("token", data.data.token);
       localStorage.setItem("user", JSON.stringify(data.data));
+      if (data.data.defaultBranchId) {
+        localStorage.setItem("activeBranchId", data.data.defaultBranchId);
+      }
       return data.data;
     } catch (error) {
       return rejectWithValue(
@@ -34,21 +65,50 @@ export const register = createAsyncThunk(
   },
 );
 
+export const selectBranch = createAsyncThunk(
+  "auth/selectBranch",
+  async ({ branchId }, { rejectWithValue }) => {
+    try {
+      const { data } = await authService.selectBranch({ branchId });
+      // Update token with branch context
+      localStorage.setItem("token", data.data.token);
+      const currentUser = JSON.parse(localStorage.getItem("user")) || {};
+      currentUser.branchId = data.data.branchId;
+      localStorage.setItem("user", JSON.stringify(currentUser));
+      localStorage.setItem("activeBranchId", data.data.branchId);
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Branch selection failed",
+      );
+    }
+  },
+);
+
 const authSlice = createSlice({
   name: "auth",
   initialState: {
-    user: user || null,
-    token: token || null,
+    user: storedUser || null,
+    token: storedToken || null,
+    subscription: storedSubscription || null,
+    branches: [],
+    activeBranchId: storedActiveBranchId || (storedUser ? storedUser.defaultBranchId : null),
     isLoading: false,
     error: null,
+    branchSelectionRequired: false,
   },
   reducers: {
     logout: (state) => {
       state.user = null;
       state.token = null;
+      state.subscription = null;
+      state.branches = [];
       state.error = null;
+      state.branchSelectionRequired = false;
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      localStorage.removeItem("subscription");
+      localStorage.removeItem("activeBranchId");
     },
     clearError: (state) => {
       state.error = null;
@@ -62,8 +122,14 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload;
+        state.user = action.payload.user;
         state.token = action.payload.token;
+        state.subscription = action.payload.subscription;
+        state.branches = action.payload.branches || [];
+        state.activeBranchId = action.payload.user?.defaultBranchId || null;
+        // Check if branch selection is needed (multiple branches available)
+        const branches = action.payload.branches || [];
+        state.branchSelectionRequired = branches.length > 1 && !action.payload.user.branchId;
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
@@ -77,10 +143,52 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload;
         state.token = action.payload.token;
+        state.activeBranchId = action.payload.defaultBranchId || null;
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+      .addCase(selectBranch.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(selectBranch.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.branchSelectionRequired = false;
+        if (state.user) {
+          state.user.branchId = action.payload.branchId;
+        }
+        state.activeBranchId = action.payload.branchId;
+        state.token = action.payload.token;
+      })
+      .addCase(selectBranch.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchMe.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchMe.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.subscription = action.payload.subscription;
+        state.branches = action.payload.branches || [];
+        if (!state.activeBranchId && action.payload.user?.defaultBranchId) {
+          state.activeBranchId = action.payload.user.defaultBranchId;
+          localStorage.setItem("activeBranchId", action.payload.user.defaultBranchId);
+        }
+      })
+      .addCase(fetchMe.rejected, (state, action) => {
+        state.isLoading = false;
+        if (action.payload?.includes?.("invalid") || action.payload?.includes?.("expire")) {
+          state.user = null;
+          state.token = null;
+          state.subscription = null;
+          state.branches = [];
+          state.activeBranchId = null;
+          state.branchSelectionRequired = false;
+        }
       });
   },
 });

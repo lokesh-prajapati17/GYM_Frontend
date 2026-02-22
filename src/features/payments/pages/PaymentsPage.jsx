@@ -24,11 +24,9 @@ import {
 } from "@mui/material";
 import { Add, Receipt } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import {
-  paymentService,
-  memberService,
-  membershipService,
-} from "../../services/services";
+import { paymentService } from "../services/paymentService";
+import { memberService } from "../../members/services/memberService";
+import { membershipService } from "../../membership/services/membershipService";
 import toast from "react-hot-toast";
 
 const PaymentsPage = () => {

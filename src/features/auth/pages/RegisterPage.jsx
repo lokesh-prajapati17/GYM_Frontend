@@ -25,7 +25,7 @@ import {
   Phone,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import { register, clearError } from "./authSlice";
+import { register, clearError } from "../authSlice";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({

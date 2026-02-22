@@ -35,14 +35,43 @@ import {
   Logout as LogoutIcon,
   Settings as SettingsIcon,
   Layers as FloorIcon,
+  LockOutlined as LockIcon,
 } from "@mui/icons-material";
 import { logout } from "../../features/auth/authSlice";
 import { selectThemeColors } from "../../features/vr/vrThemeSlice";
+import useSubscription from "../../hooks/useSubscription";
 
 const DRAWER_WIDTH = 280;
 const DRAWER_COLLAPSED = 72;
 
 const menuItems = {
+  owner: [
+    { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
+    { text: "Members", icon: <PeopleIcon />, path: "/members" },
+    { text: "Trainers", icon: <TrainerIcon />, path: "/trainers" },
+    { text: "Memberships", icon: <MembershipIcon />, path: "/memberships" },
+    { text: "Payments", icon: <PaymentIcon />, path: "/payments" },
+    { text: "Attendance", icon: <AttendanceIcon />, path: "/attendance" },
+    { text: "Workouts", icon: <FitnessIcon />, path: "/workouts" },
+    { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
+    {
+      text: "3D Gym View",
+      icon: <ThreeDIcon />,
+      path: "/gym-view",
+      requiredFeature: "vrEnabled",
+    },
+    {
+      text: "Floor Management",
+      icon: <FloorIcon />,
+      path: "/floor-management",
+      requiredFeature: "multiCitySupport",
+    },
+    {
+      text: "Notifications",
+      icon: <NotificationsIcon />,
+      path: "/notifications",
+    },
+  ],
   admin: [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
     { text: "Members", icon: <PeopleIcon />, path: "/members" },
@@ -52,11 +81,17 @@ const menuItems = {
     { text: "Attendance", icon: <AttendanceIcon />, path: "/attendance" },
     { text: "Workouts", icon: <FitnessIcon />, path: "/workouts" },
     { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
-    { text: "3D Gym View", icon: <ThreeDIcon />, path: "/gym-view" },
+    {
+      text: "3D Gym View",
+      icon: <ThreeDIcon />,
+      path: "/gym-view",
+      requiredFeature: "vrEnabled",
+    },
     {
       text: "Floor Management",
       icon: <FloorIcon />,
       path: "/floor-management",
+      requiredFeature: "multiCitySupport",
     },
     {
       text: "Notifications",
@@ -70,7 +105,12 @@ const menuItems = {
     { text: "Attendance", icon: <AttendanceIcon />, path: "/attendance" },
     { text: "Workouts", icon: <FitnessIcon />, path: "/workouts" },
     { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
-    { text: "3D Gym View", icon: <ThreeDIcon />, path: "/gym-view" },
+    {
+      text: "3D Gym View",
+      icon: <ThreeDIcon />,
+      path: "/gym-view",
+      requiredFeature: "vrEnabled",
+    },
     {
       text: "Notifications",
       icon: <NotificationsIcon />,
@@ -84,7 +124,12 @@ const menuItems = {
     { text: "My Workouts", icon: <FitnessIcon />, path: "/workouts" },
     { text: "Payments", icon: <PaymentIcon />, path: "/payments" },
     { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
-    { text: "3D Gym View", icon: <ThreeDIcon />, path: "/gym-view" },
+    {
+      text: "3D Gym View",
+      icon: <ThreeDIcon />,
+      path: "/gym-view",
+      requiredFeature: "vrEnabled",
+    },
     {
       text: "Notifications",
       icon: <NotificationsIcon />,
@@ -96,6 +141,7 @@ const menuItems = {
 const Sidebar = ({ open, onToggle, mobileOpen, onMobileClose }) => {
   const { user } = useSelector((state) => state.auth);
   const { unreadCount } = useSelector((state) => state.notifications);
+  const { hasFeature } = useSubscription();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -211,10 +257,12 @@ const Sidebar = ({ open, onToggle, mobileOpen, onMobileClose }) => {
       <List sx={{ flex: 1, px: 1, py: 1 }}>
         {items.map((item) => {
           const isActive = location.pathname === item.path;
+          const isLocked =
+            item.requiredFeature && !hasFeature(item.requiredFeature);
           return (
             <Tooltip
               key={item.text}
-              title={!open ? item.text : ""}
+              title={!open ? (isLocked ? `${item.text} (PRO)` : item.text) : ""}
               placement="right"
             >
               <ListItem disablePadding sx={{ mb: 0.5 }}>
@@ -232,6 +280,7 @@ const Sidebar = ({ open, onToggle, mobileOpen, onMobileClose }) => {
                     borderLeft: isActive
                       ? `3px solid ${primary}`
                       : "3px solid transparent",
+                    opacity: isLocked ? 0.6 : 1,
                     "&:hover": {
                       bgcolor: alpha(primary, 0.05),
                     },
@@ -242,7 +291,11 @@ const Sidebar = ({ open, onToggle, mobileOpen, onMobileClose }) => {
                       minWidth: 0,
                       mr: open ? 2 : "auto",
                       justifyContent: "center",
-                      color: isActive ? primary : "#94A3B8",
+                      color: isLocked
+                        ? alpha("#94A3B8", 0.5)
+                        : isActive
+                          ? primary
+                          : "#94A3B8",
                     }}
                   >
                     {item.text === "Notifications" && unreadCount > 0 ? (
@@ -268,19 +321,60 @@ const Sidebar = ({ open, onToggle, mobileOpen, onMobileClose }) => {
                           {unreadCount}
                         </Box>
                       </Box>
+                    ) : isLocked ? (
+                      <Box sx={{ position: "relative" }}>
+                        {item.icon}
+                        <LockIcon
+                          sx={{
+                            position: "absolute",
+                            bottom: -4,
+                            right: -6,
+                            fontSize: 12,
+                            color: "#FF6B35",
+                          }}
+                        />
+                      </Box>
                     ) : (
                       item.icon
                     )}
                   </ListItemIcon>
                   {open && (
-                    <ListItemText
-                      primary={item.text}
-                      primaryTypographyProps={{
-                        fontSize: "0.875rem",
-                        fontWeight: isActive ? 600 : 400,
-                        color: isActive ? "#F1F5F9" : "#94A3B8",
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        flex: 1,
+                        gap: 1,
                       }}
-                    />
+                    >
+                      <ListItemText
+                        primary={item.text}
+                        primaryTypographyProps={{
+                          fontSize: "0.875rem",
+                          fontWeight: isActive ? 600 : 400,
+                          color: isLocked
+                            ? alpha("#94A3B8", 0.5)
+                            : isActive
+                              ? "#F1F5F9"
+                              : "#94A3B8",
+                        }}
+                      />
+                      {isLocked && (
+                        <Chip
+                          label="PRO"
+                          size="small"
+                          sx={{
+                            height: 18,
+                            fontSize: "0.6rem",
+                            fontWeight: 800,
+                            bgcolor: alpha("#FF6B35", 0.15),
+                            color: "#FF6B35",
+                            border: `1px solid ${alpha("#FF6B35", 0.3)}`,
+                            letterSpacing: "0.05em",
+                          }}
+                        />
+                      )}
+                    </Box>
                   )}
                 </ListItemButton>
               </ListItem>

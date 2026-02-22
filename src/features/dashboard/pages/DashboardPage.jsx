@@ -44,7 +44,7 @@ import {
   Area,
 } from "recharts";
 import { motion } from "framer-motion";
-import { dashboardService } from "../../services/services";
+import { dashboardService } from "../services/dashboardService";
 import toast from "react-hot-toast";
 
 const chartColors = [

@@ -21,7 +21,7 @@ import {
   selectThemeColors,
   selectBrightness,
 } from "../../features/vr/vrThemeSlice";
-import { floorService } from "../../services/services";
+import { floorService } from "../../features/floors/services/floorService";
 import PanoramaViewer from "./PanoramaViewer";
 import HotspotMarker from "./HotspotMarker";
 import FloorSelector from "./FloorSelector";

@@ -1,0 +1,7 @@
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\auth\authSlice.js: Cannot find module '../services/authService'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\auth\pages\LoginPage.jsx: Cannot find module './authSlice'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\auth\pages\RegisterPage.jsx: Cannot find module './authSlice'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\floors\pages\FloorManagement.jsx: Cannot find module '../../features/vr/vrThemeSlice'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\floors\pages\FloorManagement.jsx: Cannot find module '../../features/floors/services/floorService'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\payments\pages\PaymentsPage.jsx: Cannot find module '../../services/payments/paymentService'
+ERROR in C:\Users\Praja\OneDrive\Desktop\GYM CRM\GYM_Frontend\src\features\trainers\TrainersPage.jsx: Cannot find module '../../services/dashboard/dashboardService'

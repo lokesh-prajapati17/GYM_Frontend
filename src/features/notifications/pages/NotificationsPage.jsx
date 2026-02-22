@@ -27,7 +27,7 @@ import {
   EventAvailable,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
-import { notificationService } from "../../services/services";
+import { notificationService } from "../services/notificationService";
 import toast from "react-hot-toast";
 
 const typeIcons = {

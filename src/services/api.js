@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const API_URL = "/api";
-
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -9,12 +8,17 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - add token
+// Request interceptor - add token and branch context
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Send active branch for server-side scoping
+    const activeBranchId = localStorage.getItem("activeBranchId");
+    if (activeBranchId) {
+      config.headers["x-branch-id"] = activeBranchId;
     }
     return config;
   },

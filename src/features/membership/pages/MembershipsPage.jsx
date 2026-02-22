@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { Add, Edit, Delete, CheckCircle, Star } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import { membershipService } from "../../services/services";
+import { membershipService } from "../../membership/services/membershipService";
 import toast from "react-hot-toast";
 
 const durationLabels = {

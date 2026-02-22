@@ -37,11 +37,9 @@ import {
   PersonAdd,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  memberService,
-  membershipService,
-  dashboardService,
-} from "../../services/services";
+import { memberService } from "../services/memberService";
+import { membershipService } from "../../membership/services/membershipService";
+import { dashboardService } from "../../dashboard/services/dashboardService";
 import toast from "react-hot-toast";
 
 const MembersPage = () => {
