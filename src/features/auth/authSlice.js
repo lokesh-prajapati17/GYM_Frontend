@@ -1,9 +1,10 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { authService } from "./services/authService";
+import { encryptData, decryptData } from "../../utils/cryptoUtils";
 
-const storedUser = JSON.parse(localStorage.getItem("user")) || null;
-const storedToken = localStorage.getItem("token") || null;
-const storedSubscription = JSON.parse(localStorage.getItem("subscription")) || null;
+const storedUser = decryptData(localStorage.getItem("user"), true) || null;
+const storedToken = decryptData(localStorage.getItem("token")) || null;
+const storedSubscription = decryptData(localStorage.getItem("subscription"), true) || null;
 const storedActiveBranchId = localStorage.getItem("activeBranchId") || null;
 
 export const login = createAsyncThunk(
@@ -12,9 +13,9 @@ export const login = createAsyncThunk(
     try {
       const { data } = await authService.login(credentials);
       const { token, user, subscription, branches } = data.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("subscription", JSON.stringify(subscription));
+      localStorage.setItem("token", encryptData(token));
+      localStorage.setItem("user", encryptData(user));
+      localStorage.setItem("subscription", encryptData(subscription));
       if (user.defaultBranchId) {
         localStorage.setItem("activeBranchId", user.defaultBranchId);
       }
@@ -31,8 +32,8 @@ export const fetchMe = createAsyncThunk(
     try {
       const { data } = await authService.getMe();
       const { user, subscription, branches } = data.data;
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("subscription", JSON.stringify(subscription));
+      localStorage.setItem("user", encryptData(user));
+      localStorage.setItem("subscription", encryptData(subscription));
       return { user, subscription, branches };
     } catch (error) {
       if (error.response?.status === 401) {
@@ -51,8 +52,8 @@ export const register = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const { data } = await authService.register(userData);
-      localStorage.setItem("token", data.data.token);
-      localStorage.setItem("user", JSON.stringify(data.data));
+      localStorage.setItem("token", encryptData(data.data.token));
+      localStorage.setItem("user", encryptData(data.data));
       if (data.data.defaultBranchId) {
         localStorage.setItem("activeBranchId", data.data.defaultBranchId);
       }
@@ -71,10 +72,10 @@ export const selectBranch = createAsyncThunk(
     try {
       const { data } = await authService.selectBranch({ branchId });
       // Update token with branch context
-      localStorage.setItem("token", data.data.token);
-      const currentUser = JSON.parse(localStorage.getItem("user")) || {};
+      localStorage.setItem("token", encryptData(data.data.token));
+      const currentUser = decryptData(localStorage.getItem("user"), true) || {};
       currentUser.branchId = data.data.branchId;
-      localStorage.setItem("user", JSON.stringify(currentUser));
+      localStorage.setItem("user", encryptData(currentUser));
       localStorage.setItem("activeBranchId", data.data.branchId);
       return data.data;
     } catch (error) {

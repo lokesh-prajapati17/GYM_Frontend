@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -16,10 +16,6 @@ import {
   Avatar,
   IconButton,
   InputAdornment,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
   MenuItem,
   alpha,
@@ -28,156 +24,208 @@ import {
   Skeleton,
 } from "@mui/material";
 import {
-  Add,
   Search,
   Edit,
   Delete,
   Visibility,
-  FilterList,
   PersonAdd,
+  Store as BranchIcon,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { memberService } from "../services/memberService";
 import { membershipService } from "../../membership/services/membershipService";
 import { dashboardService } from "../../dashboard/services/dashboardService";
-import toast from "react-hot-toast";
+import { branchService } from "../../branches/services/branchService";
+import { useSelector } from "react-redux";
+import PageLoader from "../../../components/common/PageLoader";
+import DeleteConfirmModal from "../../../components/common/DeleteConfirmModal";
+import EmptyState from "../../../components/common/EmptyState";
+
+// PERFORMANCE & CLEAN CODE: Lazy load modals
+const MemberFormModal = lazy(() => import("../components/MemberFormModal"));
 
 const MembersPage = () => {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
+  // MAIN DATA STATE
+  const [data, setData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // META DATA STATES (Dropdowns)
   const [packages, setPackages] = useState([]);
   const [trainers, setTrainers] = useState([]);
-  const navigate = useNavigate();
+  const [branches, setBranches] = useState([]);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-    height: "",
-    weight: "",
-    dateOfBirth: "",
-    gender: "",
-    membershipPlan: "",
-    trainerId: "",
-    address: "",
-    emergencyContact: "",
-    bloodGroup: "",
-    goals: "",
+  // FILTER & PAGINATION MANAGEMENT (useRef instead of state)
+  const filterRef = useRef({
+    page: 1,
+    limit: 10,
+    search: "",
+    status: "",
+    branchId: "",
   });
 
-  const fetchMembers = async () => {
-    setLoading(true);
+  // Derived state to force re-render on page number change for the Pagination component UI only
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // CURRENT EDIT ITEM
+  const currentItem = useRef({});
+
+  // MODAL MANAGEMENT ("" | "add" | "edit" | "delete")
+  const [modalType, setModalType] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const isOwner = user?.role === "owner";
+  const userBranchId = !isOwner
+    ? user?.defaultBranchId || user?.branchAccess?.[0]
+    : null;
+
+  // API FETCHING PATTERN
+  const getData = async () => {
     try {
-      const res = await memberService.getAll({
-        page,
-        limit: 10,
-        search,
-        status: statusFilter,
-      });
-      setMembers(res.data.data);
-      setTotalPages(res.data.pagination.pages);
-    } catch {
-      setMembers([]);
-      setTotalPages(1);
+      setIsLoading(true);
+
+      const params = { ...filterRef.current };
+      // Scope branch
+      if (!isOwner && userBranchId) {
+        params.branchId = userBranchId;
+      }
+
+      const result = await memberService.getAll(params);
+
+      if (result?.data?.success || result?.data) {
+        // API either returns data directly, or wrapped in success
+        const membersList = result.data.data || result.data;
+        setData(membersList || []);
+
+        // Handle standardized pagination format
+        if (result.data.pagination) {
+          setTotalPages(result.data.pagination.pages);
+        } else if (result.data.pages) {
+          setTotalPages(result.data.pages);
+        }
+      } else {
+        setData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      setData([]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const fetchMeta = async () => {
+  const getTrainer = async () => {
     try {
-      const [pkgRes, trainerRes] = await Promise.all([
-        membershipService.getAll(),
-        dashboardService.getTrainers(),
-      ]);
-      setPackages(pkgRes.data.data);
-      setTrainers(trainerRes.data.data);
-    } catch {}
+      const trainerRes = await dashboardService.getTrainers();
+      console.log(trainerRes, "trainerRes");
+      if (trainerRes?.data?.success || trainerRes?.data) {
+        setTrainers(trainerRes?.data?.data || trainerRes?.data || []);
+      }
+    } catch (error) {
+      console.error("Failed fetching trainers", error);
+    }
+  };
+
+  const getPackages = async () => {
+    try {
+      const pkgRes = await membershipService.getAll();
+      if (pkgRes?.data?.success || pkgRes?.data) {
+        setPackages(pkgRes?.data?.data || pkgRes?.data || []);
+      }
+    } catch (error) {
+      console.error("Failed fetching packages", error);
+    }
+  };
+
+  const getBranches = async () => {
+    try {
+      const branchRes = await branchService.getBranches();
+      if (branchRes?.data?.success || branchRes?.data) {
+        setBranches(branchRes?.data?.data || branchRes?.data || []);
+      }
+    } catch (error) {
+      console.error("Failed fetching branches", error);
+    }
   };
 
   useEffect(() => {
-    fetchMembers();
-  }, [page, search, statusFilter]);
-  useEffect(() => {
-    fetchMeta();
+    getTrainer();
+    getPackages();
+    getBranches();
+    getData();
   }, []);
 
-  const handleOpenDialog = (member = null) => {
-    if (member) {
-      setEditing(member);
-      setFormData({
-        name: member.name,
-        email: member.email,
-        phone: member.phone || "",
-        height: member.profile?.height || "",
-        weight: member.profile?.weight || "",
-        dateOfBirth: member.profile?.dateOfBirth
-          ? member.profile.dateOfBirth.slice(0, 10)
-          : "",
-        gender: member.profile?.gender || "",
-        membershipPlan: member.profile?.membershipPlan?._id || "",
-        trainerId: member.profile?.trainerId?._id || "",
-        address: member.profile?.address || "",
-        emergencyContact: member.profile?.emergencyContact || "",
-        bloodGroup: member.profile?.bloodGroup || "",
-        goals: member.profile?.goals || "",
-        password: "",
-      });
-    } else {
-      setEditing(null);
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        password: "Member@123",
-        height: "",
-        weight: "",
-        dateOfBirth: "",
-        gender: "",
-        membershipPlan: "",
-        trainerId: "",
-        address: "",
-        emergencyContact: "",
-        bloodGroup: "",
-        goals: "",
-      });
-    }
-    setDialogOpen(true);
+  // Update Filters
+  const handleSearch = (e) => {
+    filterRef.current.search = e.target.value;
+    filterRef.current.page = 1;
+    setCurrentPage(1);
+    getData();
   };
 
-  const handleSave = async () => {
+  const handleStatusFilter = (e) => {
+    filterRef.current.status = e.target.value;
+    filterRef.current.page = 1;
+    setCurrentPage(1);
+    getData();
+  };
+
+  const handleBranchFilter = (e) => {
+    filterRef.current.branchId = e.target.value;
+    filterRef.current.page = 1;
+    setCurrentPage(1);
+    getData();
+  };
+
+  const handlePageChange = (_, value) => {
+    filterRef.current.page = value;
+    setCurrentPage(value);
+    getData();
+  };
+
+  // Open Modals
+  const openAdd = () => {
+    currentItem.current = null;
+    setModalType("add");
+  };
+
+  const openEdit = (member) => {
+    currentItem.current = member;
+    setModalType("edit");
+  };
+
+  const openDelete = (member) => {
+    currentItem.current = member;
+    setModalType("delete");
+  };
+
+  const executeDelete = async () => {
+    if (!currentItem?.current) return;
     try {
-      if (editing) {
-        await memberService.update(editing._id, formData);
-        toast.success("Member updated successfully");
-      } else {
-        await memberService.create(formData);
-        toast.success("Member added successfully");
-      }
-      setDialogOpen(false);
-      fetchMembers();
+      setIsDeleting(true);
+      await memberService.delete(currentItem.current._id);
+      import("react-hot-toast").then((m) =>
+        m.default.success("Member deleted completely"),
+      );
+      setModalType("");
+      getData();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Operation failed");
+      import("react-hot-toast").then((m) =>
+        m.default.error("Failed to delete member"),
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this member?")) {
-      try {
-        await memberService.delete(id);
-        toast.success("Member deleted");
-        fetchMembers();
-      } catch {
-        toast.error("Delete failed");
-      }
-    }
+  // UI Helpers
+  const getBranchName = (bId) => {
+    if (!bId) return null;
+    const id = bId?._id || bId;
+    const b = branches.find((br) => br._id === id);
+    return b?.name || null;
   };
 
   const statusColors = {
@@ -186,6 +234,8 @@ const MembersPage = () => {
     frozen: "#FFB800",
     cancelled: "#94A3B8",
   };
+
+  const showBranchFilter = isOwner && branches.length > 1;
 
   return (
     <Box>
@@ -207,32 +257,33 @@ const MembersPage = () => {
             Members
           </Typography>
           <Typography variant="body2" sx={{ color: "#94A3B8" }}>
-            Manage gym members
+            {isOwner
+              ? "Manage gym members across branches"
+              : "Manage gym members"}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<PersonAdd />}
-          onClick={() => handleOpenDialog()}
-          sx={{ px: 3 }}
-        >
-          Add Member
-        </Button>
+        {(isOwner || user?.role === "admin") && (
+          <Button
+            variant="contained"
+            startIcon={<PersonAdd />}
+            onClick={openAdd}
+            sx={{ px: 3 }}
+          >
+            Add Member
+          </Button>
+        )}
       </Box>
 
       {/* Filters */}
       <Card sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={showBranchFilter ? 4 : 6}>
             <TextField
               fullWidth
               size="small"
               placeholder="Search members..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              defaultValue={filterRef.current.search}
+              onChange={handleSearch}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -248,11 +299,8 @@ const MembersPage = () => {
               select
               size="small"
               label="Status"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
+              defaultValue={filterRef.current.status}
+              onChange={handleStatusFilter}
             >
               <MenuItem value="">All</MenuItem>
               <MenuItem value="active">Active</MenuItem>
@@ -260,6 +308,33 @@ const MembersPage = () => {
               <MenuItem value="frozen">Frozen</MenuItem>
             </TextField>
           </Grid>
+          {showBranchFilter && (
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                select
+                size="small"
+                label="Branch"
+                defaultValue={filterRef.current.branchId}
+                onChange={handleBranchFilter}
+                InputProps={{
+                  startAdornment: (
+                    <BranchIcon
+                      sx={{ color: "#94A3B8", mr: 1, fontSize: 18 }}
+                    />
+                  ),
+                }}
+              >
+                <MenuItem value="">All Branches</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b._id} value={b._id}>
+                    {b.name}
+                    {b.isMainBranch ? " ⭐" : ""}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          )}
         </Grid>
       </Card>
 
@@ -271,6 +346,7 @@ const MembersPage = () => {
               <TableRow>
                 <TableCell>Member</TableCell>
                 <TableCell>Contact</TableCell>
+                {showBranchFilter && <TableCell>Branch</TableCell>}
                 <TableCell>Plan</TableCell>
                 <TableCell>Trainer</TableCell>
                 <TableCell>Status</TableCell>
@@ -279,19 +355,15 @@ const MembersPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
-                [...Array(5)].map((_, i) => (
-                  <TableRow key={i}>
-                    {[...Array(7)].map((_, j) => (
-                      <TableCell key={j}>
-                        <Skeleton />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : members.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={showBranchFilter ? 8 : 7} sx={{ p: 0 }}>
+                    <PageLoader />
+                  </TableCell>
+                </TableRow>
+              ) : data.length > 0 ? (
                 <AnimatePresence>
-                  {members.map((m, index) => (
+                  {data.map((m, index) => (
                     <motion.tr
                       key={m._id}
                       initial={{ opacity: 0, x: -10 }}
@@ -340,6 +412,28 @@ const MembersPage = () => {
                           {m.phone || "-"}
                         </Typography>
                       </TableCell>
+                      {showBranchFilter && (
+                        <TableCell>
+                          {getBranchName(m.profile?.branch) ? (
+                            <Chip
+                              label={getBranchName(m.profile?.branch)}
+                              size="small"
+                              sx={{
+                                bgcolor: alpha("#A855F7", 0.08),
+                                color: "#A855F7",
+                                fontSize: "0.7rem",
+                              }}
+                            />
+                          ) : (
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "#64748B" }}
+                            >
+                              -
+                            </Typography>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Chip
                           label={m.profile?.membershipPlan?.name || "None"}
@@ -400,7 +494,7 @@ const MembersPage = () => {
                         <Tooltip title="Edit">
                           <IconButton
                             size="small"
-                            onClick={() => handleOpenDialog(m)}
+                            onClick={() => openEdit(m)}
                             sx={{ color: "#FFB800" }}
                           >
                             <Edit fontSize="small" />
@@ -409,7 +503,7 @@ const MembersPage = () => {
                         <Tooltip title="Delete">
                           <IconButton
                             size="small"
-                            onClick={() => handleDelete(m._id)}
+                            onClick={() => openDelete(m)}
                             sx={{ color: "#FF3131" }}
                           >
                             <Delete fontSize="small" />
@@ -421,22 +515,22 @@ const MembersPage = () => {
                 </AnimatePresence>
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} sx={{ textAlign: "center", py: 6 }}>
-                    <Typography variant="h6" sx={{ color: "#64748B" }}>
-                      No members found
-                    </Typography>
+                  <TableCell colSpan={showBranchFilter ? 8 : 7} sx={{ p: 0 }}>
+                    <EmptyState message="No members found matching filters." />
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Only render pagination if totalPages > 1 */}
         {totalPages > 1 && (
           <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
             <Pagination
               count={totalPages}
-              page={page}
-              onChange={(_, v) => setPage(v)}
+              page={currentPage}
+              onChange={handlePageChange}
               sx={{
                 "& .MuiPaginationItem-root": { color: "#94A3B8" },
                 "& .Mui-selected": {
@@ -449,203 +543,26 @@ const MembersPage = () => {
         )}
       </Card>
 
-      {/* Add/Edit Dialog */}
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {editing ? "Edit Member" : "Add New Member"}
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Full Name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Phone"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-              />
-            </Grid>
-            {!editing && (
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                />
-              </Grid>
-            )}
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Height (cm)"
-                type="number"
-                value={formData.height}
-                onChange={(e) =>
-                  setFormData({ ...formData, height: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Weight (kg)"
-                type="number"
-                value={formData.weight}
-                onChange={(e) =>
-                  setFormData({ ...formData, weight: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Date of Birth"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={formData.dateOfBirth}
-                onChange={(e) =>
-                  setFormData({ ...formData, dateOfBirth: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                select
-                label="Gender"
-                value={formData.gender}
-                onChange={(e) =>
-                  setFormData({ ...formData, gender: e.target.value })
-                }
-              >
-                <MenuItem value="male">Male</MenuItem>
-                <MenuItem value="female">Female</MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                select
-                label="Membership Plan"
-                value={formData.membershipPlan}
-                onChange={(e) =>
-                  setFormData({ ...formData, membershipPlan: e.target.value })
-                }
-              >
-                <MenuItem value="">None</MenuItem>
-                {packages.map((p) => (
-                  <MenuItem key={p._id} value={p._id}>
-                    {p.name} - ₹{p.price}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                select
-                label="Assign Trainer"
-                value={formData.trainerId}
-                onChange={(e) =>
-                  setFormData({ ...formData, trainerId: e.target.value })
-                }
-              >
-                <MenuItem value="">None</MenuItem>
-                {trainers?.map((t) => (
-                  <MenuItem key={t._id} value={t._id}>
-                    {t.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Blood Group"
-                value={formData.bloodGroup}
-                onChange={(e) =>
-                  setFormData({ ...formData, bloodGroup: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Emergency Contact"
-                value={formData.emergencyContact}
-                onChange={(e) =>
-                  setFormData({ ...formData, emergencyContact: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Address"
-                multiline
-                rows={2}
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Fitness Goals"
-                multiline
-                rows={2}
-                value={formData.goals}
-                onChange={(e) =>
-                  setFormData({ ...formData, goals: e.target.value })
-                }
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button
-            onClick={() => setDialogOpen(false)}
-            sx={{ color: "#94A3B8" }}
-          >
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSave}>
-            {editing ? "Update" : "Add Member"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Lazy Loaded Modals */}
+      <Suspense fallback={null}>
+        <MemberFormModal
+          open={modalType === "add" || modalType === "edit"}
+          type={modalType}
+          currentItem={currentItem}
+          packages={packages}
+          trainers={trainers}
+          onClose={() => setModalType("")}
+          onRefresh={getData}
+        />
+        <DeleteConfirmModal
+          open={modalType === "delete"}
+          title="Delete Member?"
+          description={`Are you sure you want to completely remove ${currentItem.current?.name || "this member"}? This action cannot be undone.`}
+          isDeleting={isDeleting}
+          onConfirm={executeDelete}
+          onClose={() => setModalType("")}
+        />
+      </Suspense>
     </Box>
   );
 };

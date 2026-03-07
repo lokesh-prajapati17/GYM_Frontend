@@ -716,7 +716,8 @@ const MemberDashboard = () => {
 const DashboardPage = () => {
   const { user } = useSelector((state) => state.auth);
 
-  if (user?.role === "admin") return <AdminDashboard />;
+  if (user?.role === "admin" || user?.role === "owner")
+    return <AdminDashboard />;
   if (user?.role === "trainer") return <TrainerDashboard />;
   return <MemberDashboard />;
 };

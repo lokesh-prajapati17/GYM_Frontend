@@ -1,115 +1,147 @@
-import { useState, useEffect } from "react";
-import {
-  Box,
-  Card,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Button,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  MenuItem,
-  alpha,
-  Pagination,
-  Skeleton,
-} from "@mui/material";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { Box, Typography, Button, Chip } from "@mui/material";
+import { useTheme, alpha } from "@mui/material/styles";
 import { Add, Receipt } from "@mui/icons-material";
-import { motion } from "framer-motion";
 import { paymentService } from "../services/paymentService";
 import { memberService } from "../../members/services/memberService";
 import { membershipService } from "../../membership/services/membershipService";
-import toast from "react-hot-toast";
+import { branchService } from "../../branches/services/branchService";
+import { useSelector } from "react-redux";
+import { Store as BranchIcon } from "@mui/icons-material";
+import { CommonCard, CommonTable, FilterBar } from "../../../components/common";
+
+const RecordPaymentModal = lazy(
+  () => import("../components/RecordPaymentModal"),
+);
 
 const PaymentsPage = () => {
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [page, setPage] = useState(1);
+  const theme = useTheme();
+
+  // MAIN DATA STATE
+  const [data, setData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // PAGINATION (state for UI)
+  const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [formData, setFormData] = useState({
-    memberId: "",
-    amount: "",
-    method: "cash",
-    packageId: "",
-    description: "",
-    status: "paid",
+
+  // FILTER & PAGINATION (useRef)
+  const filterRef = useRef({
+    page: 1,
+    limit: 10,
+    search: "",
+    status: "",
+    branchId: "",
+    from: "",
+    to: "",
   });
 
-  const fetchPayments = async () => {
-    setLoading(true);
+  // META DATA
+  const [members, setMembers] = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [branches, setBranches] = useState([]);
+
+  // MODAL MANAGEMENT
+  const [modalType, setModalType] = useState("");
+
+  const { user } = useSelector((state) => state.auth);
+  const isOwner = user?.role === "owner" || user?.role === "admin";
+  const userBranchId = !isOwner
+    ? user?.defaultBranchId || user?.branchAccess?.[0]
+    : null;
+
+  // API FETCHING
+  const getData = async () => {
     try {
-      const res = await paymentService.getAll({ page, limit: 10 });
-      setPayments(res.data.data);
-      setTotalPages(res.data.pagination.pages);
-    } catch {
-      setPayments([
-        {
-          _id: "1",
-          memberId: { name: "Amit Kumar" },
-          amount: 4499,
-          paymentDate: new Date().toISOString(),
-          status: "paid",
-          method: "upi",
-          receiptNumber: "RCP-001",
-          packageId: { name: "Gold Half-Yearly" },
-        },
-        {
-          _id: "2",
-          memberId: { name: "Sneha Patel" },
-          amount: 2499,
-          paymentDate: new Date().toISOString(),
-          status: "paid",
-          method: "cash",
-          receiptNumber: "RCP-002",
-          packageId: { name: "Silver Quarterly" },
-        },
-        {
-          _id: "3",
-          memberId: { name: "Vikram Reddy" },
-          amount: 7999,
-          paymentDate: new Date().toISOString(),
-          status: "pending",
-          method: "card",
-          receiptNumber: "RCP-003",
-          packageId: { name: "Platinum Annual" },
-        },
-      ]);
+      setIsLoading(true);
+      const params = { ...filterRef.current };
+
+      if (!isOwner && userBranchId) {
+        params.branchId = userBranchId;
+      }
+
+      const res = await paymentService.getAll(params);
+
+      if (res?.data?.success || res?.data) {
+        setData(res.data.data || []);
+        if (res.data.pagination) {
+          setTotalPages(res.data.pagination.pages || 1);
+        }
+      } else {
+        setData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      setData([]);
       setTotalPages(1);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const fetchMetadata = async () => {
+    try {
+      const [membersRes, packagesRes, branchesRes] = await Promise.all([
+        memberService.getAll({ limit: 1000 }),
+        membershipService.getAll(),
+        branchService.getBranches(),
+      ]);
+      setMembers(membersRes.data.data || []);
+      setPackages(packagesRes.data.data || []);
+      setBranches(branchesRes.data || []);
+    } catch (err) {
+      console.error("Failed to fetch metadata", err);
     }
   };
 
   useEffect(() => {
-    fetchPayments();
-  }, [page]);
+    fetchMetadata();
+    getData();
+  }, []);
 
-  const handleSave = async () => {
-    try {
-      await paymentService.create(formData);
-      toast.success("Payment recorded");
-      setDialogOpen(false);
-      fetchPayments();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed");
-    }
+  // FILTER HANDLERS
+  const handleSearch = (value) => {
+    filterRef.current.search = value;
+    filterRef.current.page = 1;
+    setCurrentPage(1);
+    getData();
   };
 
+  const handleFilterChange = (key, value) => {
+    filterRef.current[key] = value;
+    filterRef.current.page = 1;
+    setCurrentPage(1);
+    getData();
+  };
+
+  const handlePageChange = (page) => {
+    filterRef.current.page = page;
+    setCurrentPage(page);
+    getData();
+  };
+
+  const handleResetFilters = () => {
+    filterRef.current = {
+      page: 1,
+      limit: 10,
+      search: "",
+      status: "",
+      branchId: "",
+      from: "",
+      to: "",
+    };
+    setCurrentPage(1);
+    getData();
+  };
+
+  // STATUS & METHOD MAPS
   const statusColors = {
-    paid: "#39FF14",
-    pending: "#FFB800",
-    failed: "#FF3131",
-    refunded: "#94A3B8",
+    paid: theme.palette.success.main,
+    pending: theme.palette.warning.main,
+    failed: theme.palette.error.main,
+    refunded: theme.palette.text.secondary,
   };
+
   const methodLabels = {
     cash: "Cash",
     card: "Card",
@@ -118,8 +150,154 @@ const PaymentsPage = () => {
     bank_transfer: "Bank Transfer",
   };
 
+  const showBranchFilter = isOwner && branches.length > 1;
+
+  // FILTER CONFIG
+  const filterConfig = [
+    {
+      key: "status",
+      label: "Status",
+      defaultValue: "",
+      onChange: (val) => handleFilterChange("status", val),
+      options: [
+        { value: "", label: "All Statuses" },
+        { value: "paid", label: "Paid" },
+        { value: "pending", label: "Pending" },
+        { value: "failed", label: "Failed" },
+        { value: "refunded", label: "Refunded" },
+      ],
+    },
+    ...(showBranchFilter
+      ? [
+          {
+            key: "branchId",
+            label: "Branch",
+            defaultValue: "",
+            icon: BranchIcon,
+            onChange: (val) => handleFilterChange("branchId", val),
+            options: [
+              { value: "", label: "All Branches" },
+              ...branches.map((b) => ({ value: b._id, label: b.name })),
+            ],
+          },
+        ]
+      : []),
+  ];
+
+  const dateFilterConfig = [
+    {
+      key: "from",
+      label: "From Date",
+      onChange: (val) => handleFilterChange("from", val),
+    },
+    {
+      key: "to",
+      label: "To Date",
+      onChange: (val) => handleFilterChange("to", val),
+    },
+  ];
+
+  // TABLE COLUMNS
+  const columns = [
+    {
+      key: "receiptNumber",
+      label: "Receipt",
+      render: (p) => (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Receipt sx={{ color: theme.palette.text.secondary, fontSize: 18 }} />
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, fontFamily: "monospace" }}
+          >
+            {p.receiptNumber || "-"}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: "member",
+      label: "Member",
+      render: (p) => (
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          {p.memberId?.name || "-"}
+        </Typography>
+      ),
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (p) => (
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 700, color: theme.palette.success.main }}
+        >
+          ₹{p.amount?.toLocaleString()}
+        </Typography>
+      ),
+    },
+    {
+      key: "package",
+      label: "Package",
+      render: (p) => (
+        <Chip
+          label={p.packageId?.name || "-"}
+          size="small"
+          sx={{
+            bgcolor: alpha(theme.palette.info.main, 0.08),
+            color: theme.palette.info.main,
+            fontSize: "0.7rem",
+          }}
+        />
+      ),
+    },
+    {
+      key: "method",
+      label: "Method",
+      render: (p) => (
+        <Chip
+          label={methodLabels[p.method] || p.method}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: "0.7rem" }}
+        />
+      ),
+    },
+    {
+      key: "date",
+      label: "Date",
+      render: (p) => (
+        <Typography
+          variant="body2"
+          sx={{ color: theme.palette.text.secondary }}
+        >
+          {new Date(p.paymentDate || p.createdAt).toLocaleDateString()}
+        </Typography>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (p) => (
+        <Chip
+          label={p.status?.toUpperCase()}
+          size="small"
+          sx={{
+            bgcolor: alpha(
+              statusColors[p.status] || theme.palette.text.secondary,
+              0.1,
+            ),
+            color: statusColors[p.status] || theme.palette.text.secondary,
+            fontWeight: 600,
+            fontSize: "0.7rem",
+          }}
+        />
+      ),
+    },
+  ];
+
   return (
     <Box>
+      {/* Page Header */}
       <Box
         sx={{
           display: "flex",
@@ -129,234 +307,57 @@ const PaymentsPage = () => {
         }}
       >
         <Box>
-          <Typography
-            variant="h4"
-            sx={{ fontWeight: 800, fontFamily: "Outfit" }}
-          >
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Payments
           </Typography>
-          <Typography variant="body2" sx={{ color: "#94A3B8" }}>
-            Track and manage payment records
+          <Typography
+            variant="body2"
+            sx={{ color: theme.palette.text.secondary }}
+          >
+            Track and manage payment records and revenue
           </Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={() => setDialogOpen(true)}
+          onClick={() => setModalType("add")}
         >
           Record Payment
         </Button>
       </Box>
 
-      <Card>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Receipt</TableCell>
-                <TableCell>Member</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Package</TableCell>
-                <TableCell>Method</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading
-                ? [...Array(5)].map((_, i) => (
-                    <TableRow key={i}>
-                      {[...Array(7)].map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : payments.map((p, i) => (
-                    <motion.tr
-                      key={p._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      style={{ display: "table-row" }}
-                    >
-                      <TableCell>
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                        >
-                          <Receipt sx={{ color: "#94A3B8", fontSize: 18 }} />
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: 600, fontFamily: "monospace" }}
-                          >
-                            {p.receiptNumber || "-"}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {p.memberId?.name || "-"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 700, color: "#39FF14" }}
-                        >
-                          ₹{p.amount?.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={p.packageId?.name || "-"}
-                          size="small"
-                          sx={{
-                            bgcolor: alpha("#00F5FF", 0.08),
-                            color: "#00F5FF",
-                            fontSize: "0.7rem",
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={methodLabels[p.method] || p.method}
-                          size="small"
-                          variant="outlined"
-                          sx={{ fontSize: "0.7rem" }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ color: "#94A3B8" }}>
-                          {new Date(p.paymentDate).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={p.status?.toUpperCase()}
-                          size="small"
-                          sx={{
-                            bgcolor: alpha(
-                              statusColors[p.status] || "#94A3B8",
-                              0.1,
-                            ),
-                            color: statusColors[p.status] || "#94A3B8",
-                            fontWeight: 600,
-                            fontSize: "0.7rem",
-                          }}
-                        />
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {totalPages > 1 && (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-            <Pagination
-              count={totalPages}
-              page={page}
-              onChange={(_, v) => setPage(v)}
-            />
-          </Box>
-        )}
-      </Card>
+      {/* Filters */}
+      <FilterBar
+        searchPlaceholder="Search receipts or members..."
+        onSearchChange={handleSearch}
+        filters={filterConfig}
+        dateFilters={dateFilterConfig}
+        onReset={handleResetFilters}
+      />
 
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Record Payment</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Member ID"
-                value={formData.memberId}
-                onChange={(e) =>
-                  setFormData({ ...formData, memberId: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Amount (₹)"
-                type="number"
-                value={formData.amount}
-                onChange={(e) =>
-                  setFormData({ ...formData, amount: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                select
-                label="Method"
-                value={formData.method}
-                onChange={(e) =>
-                  setFormData({ ...formData, method: e.target.value })
-                }
-              >
-                <MenuItem value="cash">Cash</MenuItem>
-                <MenuItem value="card">Card</MenuItem>
-                <MenuItem value="upi">UPI</MenuItem>
-                <MenuItem value="online">Online</MenuItem>
-                <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                select
-                label="Status"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
-              >
-                <MenuItem value="paid">Paid</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Package ID"
-                value={formData.packageId}
-                onChange={(e) =>
-                  setFormData({ ...formData, packageId: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button
-            onClick={() => setDialogOpen(false)}
-            sx={{ color: "#94A3B8" }}
-          >
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSave}>
-            Record
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Payments Table */}
+      <CommonCard>
+        <CommonTable
+          columns={columns}
+          data={data}
+          loading={isLoading}
+          emptyMessage="No payments found matching the selected criteria."
+          emptyIcon={Receipt}
+          pagination={{ page: currentPage, pages: totalPages }}
+          onPageChange={handlePageChange}
+        />
+      </CommonCard>
+
+      {/* Lazy Loaded Modal */}
+      <Suspense fallback={null}>
+        <RecordPaymentModal
+          open={modalType === "add"}
+          onClose={() => setModalType("")}
+          onRefresh={getData}
+          members={members}
+          packages={packages}
+        />
+      </Suspense>
     </Box>
   );
 };

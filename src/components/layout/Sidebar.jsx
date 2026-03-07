@@ -36,6 +36,8 @@ import {
   Settings as SettingsIcon,
   Layers as FloorIcon,
   LockOutlined as LockIcon,
+  Build as BuildIcon,
+  Store as StoreIcon,
 } from "@mui/icons-material";
 import { logout } from "../../features/auth/authSlice";
 import { selectThemeColors } from "../../features/vr/vrThemeSlice";
@@ -53,6 +55,8 @@ const menuItems = {
     { text: "Payments", icon: <PaymentIcon />, path: "/payments" },
     { text: "Attendance", icon: <AttendanceIcon />, path: "/attendance" },
     { text: "Workouts", icon: <FitnessIcon />, path: "/workouts" },
+    { text: "Equipment", icon: <BuildIcon />, path: "/equipment" },
+    { text: "Branches", icon: <StoreIcon />, path: "/branches" },
     { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
     {
       text: "3D Gym View",
@@ -80,6 +84,7 @@ const menuItems = {
     { text: "Payments", icon: <PaymentIcon />, path: "/payments" },
     { text: "Attendance", icon: <AttendanceIcon />, path: "/attendance" },
     { text: "Workouts", icon: <FitnessIcon />, path: "/workouts" },
+    { text: "Equipment", icon: <BuildIcon />, path: "/equipment" },
     { text: "BMI Calculator", icon: <CalculateIcon />, path: "/bmi" },
     {
       text: "3D Gym View",

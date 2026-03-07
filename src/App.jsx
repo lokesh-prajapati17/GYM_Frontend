@@ -10,6 +10,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleRoute from "./routes/RoleRoute";
 import FeatureRoute from "./routes/FeatureRoute";
 import AppLayout from "./components/layout/AppLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { fetchMe } from "./features/auth/authSlice";
 
 // Lazy loaded pages for code splitting
@@ -37,6 +38,12 @@ const NotificationsPage = lazy(
 );
 const TrainersPage = lazy(() => import("./features/trainers/TrainersPage"));
 const GymScene = lazy(() => import("./components/threejs/GymScene"));
+const EquipmentPage = lazy(
+  () => import("./features/equipment/pages/EquipmentPage"),
+);
+const BranchManagementPage = lazy(
+  () => import("./features/branches/pages/BranchManagementPage"),
+);
 const FloorManagement = lazy(
   () => import("./features/floors/pages/FloorManagement"),
 );
@@ -113,7 +120,7 @@ const AppContent = () => {
               <Route
                 path="trainers"
                 element={
-                  <RoleRoute roles={["owner", "admin", "trainer"]}>
+                  <RoleRoute roles={["owner", "admin"]}>
                     <TrainersPage />
                   </RoleRoute>
                 }
@@ -126,10 +133,33 @@ const AppContent = () => {
                   </RoleRoute>
                 }
               />
-              <Route path="payments" element={<PaymentsPage />} />
+              <Route
+                path="payments"
+                element={
+                  <RoleRoute roles={["owner", "admin", "member"]}>
+                    <PaymentsPage />
+                  </RoleRoute>
+                }
+              />
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="workouts" element={<WorkoutsPage />} />
               <Route path="bmi" element={<BMIPage />} />
+              <Route
+                path="equipment"
+                element={
+                  <RoleRoute roles={["owner", "admin"]}>
+                    <EquipmentPage />
+                  </RoleRoute>
+                }
+              />
+              <Route
+                path="branches"
+                element={
+                  <RoleRoute roles={["owner"]}>
+                    <BranchManagementPage />
+                  </RoleRoute>
+                }
+              />
               <Route
                 path="gym-view"
                 element={
@@ -164,7 +194,9 @@ const AppContent = () => {
 const App = () => {
   return (
     <Provider store={store}>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </Provider>
   );
 };

@@ -98,17 +98,18 @@ const darkTheme = createTheme({
           backgroundImage:
             "radial-gradient(ellipse at 20% 50%, rgba(57, 255, 20, 0.03) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0, 245, 255, 0.03) 0%, transparent 50%)",
           "&::-webkit-scrollbar": {
-            width: "8px",
+            width: "5px",
+            height: "5px",
           },
           "&::-webkit-scrollbar-track": {
             background: "#0A0E17",
           },
           "&::-webkit-scrollbar-thumb": {
-            background: alpha(neonGreen, 0.3),
-            borderRadius: "4px",
+            background: alpha(neonGreen, 0.4),
+            borderRadius: "10px",
           },
           "&::-webkit-scrollbar-thumb:hover": {
-            background: alpha(neonGreen, 0.5),
+            background: neonGreen,
           },
         },
       },

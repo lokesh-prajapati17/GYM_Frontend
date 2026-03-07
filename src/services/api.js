@@ -1,8 +1,9 @@
 import axios from "axios";
+import { BASE_URL } from "./constants";
+import { decryptData } from "../utils/cryptoUtils";
 
-const API_URL = import.meta.env.VITE_API_URL || "/api";
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -11,7 +12,7 @@ const api = axios.create({
 // Request interceptor - add token and branch context
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = decryptData(localStorage.getItem("token"));
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

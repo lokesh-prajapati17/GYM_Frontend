@@ -1,19 +1,16 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
-  Card,
   Typography,
   List,
   ListItem,
   ListItemIcon,
   ListItemText,
   IconButton,
-  Chip,
   Button,
-  alpha,
-  Skeleton,
   Divider,
 } from "@mui/material";
+import { useTheme, alpha } from "@mui/material/styles";
 import {
   Notifications as NotifIcon,
   Circle,
@@ -29,39 +26,53 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { notificationService } from "../services/notificationService";
 import toast from "react-hot-toast";
-
-const typeIcons = {
-  membership_expiry: <CardMembership sx={{ color: "#FF3131" }} />,
-  payment_due: <Payment sx={{ color: "#FFB800" }} />,
-  birthday: <Cake sx={{ color: "#FF6B35" }} />,
-  special_offer: <Info sx={{ color: "#A855F7" }} />,
-  workout_assigned: <FitnessCenter sx={{ color: "#39FF14" }} />,
-  attendance: <EventAvailable sx={{ color: "#00F5FF" }} />,
-  general: <NotifIcon sx={{ color: "#94A3B8" }} />,
-};
-
-const typeColors = {
-  membership_expiry: "#FF3131",
-  payment_due: "#FFB800",
-  birthday: "#FF6B35",
-  special_offer: "#A855F7",
-  workout_assigned: "#39FF14",
-  attendance: "#00F5FF",
-  general: "#94A3B8",
-};
+import { CommonCard, PageLoader, EmptyState } from "../../../components/common";
 
 const NotificationsPage = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+
+  // MAIN DATA STATE
+  const [data, setData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchNotifications = async () => {
+  const typeIcons = {
+    membership_expiry: (
+      <CardMembership sx={{ color: theme.palette.error.main }} />
+    ),
+    payment_due: <Payment sx={{ color: theme.palette.warning.main }} />,
+    birthday: <Cake sx={{ color: "#FF6B35" }} />,
+    special_offer: <Info sx={{ color: "#A855F7" }} />,
+    workout_assigned: (
+      <FitnessCenter sx={{ color: theme.palette.success.main }} />
+    ),
+    attendance: <EventAvailable sx={{ color: theme.palette.info.main }} />,
+    general: <NotifIcon sx={{ color: theme.palette.text.secondary }} />,
+  };
+
+  const typeColors = {
+    membership_expiry: theme.palette.error.main,
+    payment_due: theme.palette.warning.main,
+    birthday: "#FF6B35",
+    special_offer: "#A855F7",
+    workout_assigned: theme.palette.success.main,
+    attendance: theme.palette.info.main,
+    general: theme.palette.text.secondary,
+  };
+
+  const getData = async () => {
     try {
+      setIsLoading(true);
       const res = await notificationService.getAll();
-      setNotifications(res.data.data);
-      setUnreadCount(res.data.unreadCount);
+      if (res?.data?.data) {
+        setData(res.data.data);
+        setUnreadCount(res.data.unreadCount || 0);
+      } else {
+        setData([]);
+      }
     } catch {
-      setNotifications([
+      // Fallback dummy data for demo
+      setData([
         {
           _id: "1",
           type: "membership_expiry",
@@ -97,35 +108,39 @@ const NotificationsPage = () => {
       ]);
       setUnreadCount(2);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
+    getData();
   }, []);
 
   const handleMarkRead = async (id) => {
     try {
       await notificationService.markAsRead(id);
-      setNotifications((prev) =>
+      setData((prev) =>
         prev.map((n) => (n._id === id ? { ...n, read: true } : n)),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch {}
+    } catch {
+      toast.error("Failed to mark as read");
+    }
   };
 
   const handleMarkAllRead = async () => {
     try {
       await notificationService.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setData((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
       toast.success("All marked as read");
-    } catch {}
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
   };
 
-  const timeAgo = (date) => {
-    const diff = Date.now() - new Date(date).getTime();
+  const timeAgo = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes < 60) return `${minutes}m ago`;
     const hours = Math.floor(minutes / 60);
@@ -140,19 +155,19 @@ const NotificationsPage = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          mb: 3,
+          mb: 4,
           flexWrap: "wrap",
           gap: 2,
         }}
       >
         <Box>
-          <Typography
-            variant="h4"
-            sx={{ fontWeight: 800, fontFamily: "Outfit" }}
-          >
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Notifications
           </Typography>
-          <Typography variant="body2" sx={{ color: "#94A3B8" }}>
+          <Typography
+            variant="body2"
+            sx={{ color: theme.palette.text.secondary }}
+          >
             {unreadCount} unread notifications
           </Typography>
         </Box>
@@ -161,121 +176,136 @@ const NotificationsPage = () => {
             variant="outlined"
             startIcon={<DoneAll />}
             onClick={handleMarkAllRead}
+            sx={{
+              borderColor: theme.palette.divider,
+              color: theme.palette.text.primary,
+            }}
           >
             Mark All Read
           </Button>
         )}
       </Box>
 
-      <Card>
-        {loading ? (
-          [...Array(4)].map((_, i) => (
-            <Box key={i} sx={{ p: 2 }}>
-              <Skeleton height={60} />
-            </Box>
-          ))
-        ) : notifications.length > 0 ? (
+      <CommonCard sx={{ p: 0, overflow: "hidden" }}>
+        {isLoading ? (
+          <Box sx={{ p: 4, textAlign: "center" }}>
+            <PageLoader />
+          </Box>
+        ) : data.length > 0 ? (
           <List sx={{ p: 0 }}>
             <AnimatePresence>
-              {notifications.map((n, i) => (
-                <motion.div
-                  key={n._id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <ListItem
-                    sx={{
-                      py: 2,
-                      px: 3,
-                      bgcolor: !n.read
-                        ? alpha(typeColors[n.type] || "#94A3B8", 0.03)
-                        : "transparent",
-                      borderLeft: !n.read
-                        ? `3px solid ${typeColors[n.type] || "#94A3B8"}`
-                        : "3px solid transparent",
-                      "&:hover": { bgcolor: alpha("#fff", 0.02) },
-                    }}
-                    secondaryAction={
-                      !n.read && (
-                        <IconButton
-                          size="small"
-                          onClick={() => handleMarkRead(n._id)}
-                          sx={{ color: "#94A3B8" }}
-                        >
-                          <MarkEmailRead fontSize="small" />
-                        </IconButton>
-                      )
-                    }
+              {data.map((n, i) => {
+                const bgAlpha = !n.read ? 0.05 : 0;
+                const brColor = !n.read
+                  ? typeColors[n.type] || theme.palette.primary.main
+                  : "transparent";
+
+                return (
+                  <motion.div
+                    key={n._id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.03 }}
                   >
-                    <ListItemIcon>
-                      {typeIcons[n.type] || typeIcons.general}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                        >
-                          <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: !n.read ? 700 : 500 }}
+                    <ListItem
+                      sx={{
+                        py: 2,
+                        px: 3,
+                        bgcolor: alpha(
+                          typeColors[n.type] || theme.palette.text.secondary,
+                          bgAlpha,
+                        ),
+                        borderLeft: `3px solid ${brColor}`,
+                        "&:hover": {
+                          bgcolor: alpha(theme.palette.text.primary, 0.02),
+                        },
+                      }}
+                      secondaryAction={
+                        !n.read && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleMarkRead(n._id)}
+                            sx={{ color: theme.palette.text.secondary }}
                           >
-                            {n.title}
-                          </Typography>
-                          {!n.read && (
-                            <Circle
-                              sx={{ fontSize: 8, color: typeColors[n.type] }}
-                            />
-                          )}
-                        </Box>
+                            <MarkEmailRead fontSize="small" />
+                          </IconButton>
+                        )
                       }
-                      secondary={
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            mt: 0.5,
-                          }}
-                        >
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "#94A3B8", fontSize: "0.8rem" }}
-                          >
-                            {n.message}
-                          </Typography>
-                          <Typography
-                            variant="caption"
+                    >
+                      <ListItemIcon>
+                        {typeIcons[n.type] || typeIcons.general}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box
                             sx={{
-                              color: "#64748B",
-                              whiteSpace: "nowrap",
-                              ml: 2,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
                             }}
                           >
-                            {timeAgo(n.createdAt)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                  {i < notifications.length - 1 && (
-                    <Divider sx={{ borderColor: alpha("#94A3B8", 0.06) }} />
-                  )}
-                </motion.div>
-              ))}
+                            <Typography
+                              variant="subtitle2"
+                              sx={{ fontWeight: !n.read ? 700 : 500 }}
+                            >
+                              {n.title}
+                            </Typography>
+                            {!n.read && (
+                              <Circle
+                                sx={{
+                                  fontSize: 8,
+                                  color:
+                                    typeColors[n.type] ||
+                                    theme.palette.primary.main,
+                                }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              mt: 0.5,
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: theme.palette.text.secondary,
+                                fontSize: "0.8rem",
+                              }}
+                            >
+                              {n.message}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: theme.palette.text.disabled,
+                                whiteSpace: "nowrap",
+                                ml: 2,
+                              }}
+                            >
+                              {timeAgo(n.createdAt)}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                    {i < data.length - 1 && (
+                      <Divider sx={{ borderColor: theme.palette.divider }} />
+                    )}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </List>
         ) : (
-          <Box sx={{ textAlign: "center", py: 6 }}>
-            <NotifIcon
-              sx={{ fontSize: 48, color: "#64748B", opacity: 0.3, mb: 1 }}
-            />
-            <Typography variant="h6" sx={{ color: "#64748B" }}>
-              No notifications yet
-            </Typography>
-          </Box>
+          <EmptyState message="No notifications yet" icon={NotifIcon} />
         )}
-      </Card>
+      </CommonCard>
     </Box>
   );
 };

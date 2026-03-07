@@ -34,9 +34,8 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, isLoading, error, branchSelectionRequired, branches } = useSelector(
-    (state) => state.auth,
-  );
+  const { user, isLoading, error, branchSelectionRequired, branches } =
+    useSelector((state) => state.auth);
 
   useEffect(() => {
     // Navigate to dashboard only if logged in and no branch selection pending
@@ -111,10 +110,7 @@ const LoginPage = () => {
               >
                 Select Branch
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "#94A3B8", mt: 0.5 }}
-              >
+              <Typography variant="body2" sx={{ color: "#94A3B8", mt: 0.5 }}>
                 Welcome, {user.name}! Choose a branch to continue.
               </Typography>
             </Box>
@@ -167,10 +163,7 @@ const LoginPage = () => {
                         </Typography>
                       }
                       secondary={
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "#94A3B8" }}
-                        >
+                        <Typography variant="caption" sx={{ color: "#94A3B8" }}>
                           {branch.floorCount} floor
                           {branch.floorCount > 1 ? "s" : ""}
                           {branch.vrEnabled && " • VR Enabled"}
